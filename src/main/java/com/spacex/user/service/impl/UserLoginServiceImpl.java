@@ -54,7 +54,11 @@ public class UserLoginServiceImpl implements UserLoginService {
         userPO.setPassword(passwordHash);
         userPO.setPasswordSalt(passwordSaltHash);
         userPO.setStatus(1);
-        userPO.setLastLoginTime(new Date());
+
+        Date current = new Date();
+        userPO.setLastLoginTime(current);
+        userPO.setCreatedTime(current);
+        userPO.setUpdatedTime(current);
 
         userMapper.insertSelective(userPO);
         return TokenUtil.generate(TOKEN_LENGTH);
@@ -112,11 +116,11 @@ public class UserLoginServiceImpl implements UserLoginService {
         if (StringUtils.isNotBlank(counter) && StringUtils.isNumeric(counter) && Integer.parseInt(counter) > maxLimit) {
             Long expiredTime = stringRedisTemplate.getExpire(failKey);
             Long time = (expiredTime / 3600L);
-            String message = String.format("登录错误次数过多，请过%s个小时再尝试", time);
+            String message = String.format("登录错误次数过多，账号被锁定，请过%s个小时再尝试", time);
 
             if (time <= 0) {
                 time = expiredTime / 60;
-                message = String.format("登录错误次数过多，请过%s个分钟再尝试", time);
+                message = String.format("登录错误次数过多，账号被锁定，请过%s个分钟再尝试", time);
             }
             throw new RuntimeException(message);
 

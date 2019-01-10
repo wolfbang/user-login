@@ -97,13 +97,7 @@ public class UserLoginServiceImpl implements UserLoginService {
         doCheckPassword(account, password);
 
         String token = TokenUtil.generate(TOKEN_LENGTH);
-
-        String key = "magellan:user:token:info:" + account;
-        Map<String, String> userLoginInfoMap = Maps.newHashMap();
-        userLoginInfoMap.put("account", account);
-        userLoginInfoMap.put("token", token);
-        stringRedisTemplate.opsForHash().putAll(key, userLoginInfoMap);
-        stringRedisTemplate.expire(key, 2, TimeUnit.HOURS);
+        doSetUserTokenMap(account, token);
 
         updateLastLoginTime(account);
         return token;
@@ -152,6 +146,15 @@ public class UserLoginServiceImpl implements UserLoginService {
 
     }
 
+    private void doSetUserTokenMap(String account, String token) {
+        String key = "magellan:user:token:info:" + token;
+        Map<String, String> userLoginInfoMap = Maps.newHashMap();
+        userLoginInfoMap.put("account", account);
+        userLoginInfoMap.put("token", token);
+        stringRedisTemplate.opsForHash().putAll(key, userLoginInfoMap);
+        stringRedisTemplate.expire(key, 2, TimeUnit.HOURS);
+    }
+
     private void updateLastLoginTime(String account) {
         Example example = new Example(UserPO.class);
         Example.Criteria criteria = example.createCriteria();
@@ -163,12 +166,12 @@ public class UserLoginServiceImpl implements UserLoginService {
     }
 
     @Override
-    public boolean logout(String account) {
+    public boolean logout(String account, String token) {
         String key = "magellan:user:token:info:" + account;
-        Map<Object, Object> userInfoMap = stringRedisTemplate.opsForHash().entries(key);
+        Map<Object, Object> userTokenInfoMap = stringRedisTemplate.opsForHash().entries(key);
 
-        if (MapUtils.isNotEmpty(userInfoMap)) {
-            String accountInRedis = (String) userInfoMap.get("account");
+        if (MapUtils.isNotEmpty(userTokenInfoMap)) {
+            String accountInRedis = (String) userTokenInfoMap.get("account");
             if (StringUtils.equals(account, accountInRedis)) {
                 stringRedisTemplate.delete(key);
                 return true;

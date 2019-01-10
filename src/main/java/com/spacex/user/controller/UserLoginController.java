@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -34,9 +35,9 @@ public class UserLoginController {
     }
 
     @RequestMapping(value = "logout", method = RequestMethod.POST)
-    public SimpleBooleanResult logout(String account) {
+    public SimpleBooleanResult logout(@RequestParam String account, @RequestParam String token) {
         Preconditions.checkArgument(StringUtils.isNotBlank(account), "account不能为空");
-        boolean result = userLoginService.logout(account);
+        boolean result = userLoginService.logout(account,token);
         return new SimpleBooleanResult(result);
     }
 }

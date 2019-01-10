@@ -6,6 +6,7 @@ import com.spacex.user.dto.UserRegisterDTO;
 import com.spacex.user.repository.mapper.UserMapper;
 import com.spacex.user.repository.po.UserPO;
 import com.spacex.user.service.UserLoginService;
+import com.spacex.user.service.UserService;
 import com.spacex.user.util.BeanCopyUtil;
 import com.spacex.user.util.JsonUtil;
 import com.spacex.user.util.PasswordUtil;
@@ -37,6 +38,9 @@ public class UserLoginServiceImpl implements UserLoginService {
     private StringRedisTemplate stringRedisTemplate;
 
     @Resource
+    private UserService userService;
+
+    @Resource
     private UserMapper userMapper;
 
     @Override
@@ -66,24 +70,10 @@ public class UserLoginServiceImpl implements UserLoginService {
 
     private void doCheck(UserRegisterDTO userRegisterDTO) {
         String account = userRegisterDTO.getAccount();
-        UserPO userPO = getUserByAccount(account);
+        UserPO userPO = userService.getByAccount(account);
         if (userPO != null) {
             throw new RuntimeException(String.format("账号:%s已经被占用！", account));
         }
-    }
-
-    public UserPO getUserByAccount(String account) {
-        Example example = new Example(UserPO.class);
-        Example.Criteria criteria = example.createCriteria();
-        criteria.andEqualTo("account", account);
-
-        List<UserPO> userPOs = userMapper.selectByExample(example);
-        if (CollectionUtils.isEmpty(userPOs)) {
-            return null;
-        }
-
-        UserPO userPO = userPOs.get(0);
-        return userPO;
     }
 
     @Override
@@ -123,7 +113,7 @@ public class UserLoginServiceImpl implements UserLoginService {
 
     private void doCheckPassword(String account, String password) {
 
-        UserPO userPO = getUserByAccount(account);
+        UserPO userPO = userService.getByAccount(account);
 
         if (userPO == null) {
             String failKey = "magellan:user:login:fail:" + account;
@@ -135,7 +125,7 @@ public class UserLoginServiceImpl implements UserLoginService {
         String realPasswordHash = userPO.getPassword();
         String realPasswordSaltHash = userPO.getPasswordSalt();
 
-        String passwordHash = PasswordUtil.sha256Hex(password + realPasswordSaltHash);
+        String passwordHash = PasswordUtil.getPasswordHash(password, realPasswordSaltHash);
 
         if (!StringUtils.equalsIgnoreCase(realPasswordHash, passwordHash)) {
             String failKey = "magellan:user:login:fail:" + account;

@@ -19,4 +19,8 @@ public class PasswordUtil {
         }
         return DigestUtils.sha256Hex(text);
     }
+
+    public static String getPasswordHash(String password, String passwordSalt) {
+        return sha256Hex(password + passwordSalt);
+    }
 }

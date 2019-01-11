@@ -8,5 +8,5 @@ public interface UserLoginService {
 
     String login(UserLoginDTO userLoginDTO);
 
-    boolean logout(String account);
+    boolean logout(String account, String token);
 }

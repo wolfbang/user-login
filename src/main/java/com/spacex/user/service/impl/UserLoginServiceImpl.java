@@ -6,6 +6,7 @@ import com.spacex.user.dto.UserRegisterDTO;
 import com.spacex.user.repository.mapper.UserMapper;
 import com.spacex.user.repository.po.UserPO;
 import com.spacex.user.service.UserLoginService;
+import com.spacex.user.service.UserService;
 import com.spacex.user.util.BeanCopyUtil;
 import com.spacex.user.util.JsonUtil;
 import com.spacex.user.util.PasswordUtil;
@@ -37,6 +38,9 @@ public class UserLoginServiceImpl implements UserLoginService {
     private StringRedisTemplate stringRedisTemplate;
 
     @Resource
+    private UserService userService;
+
+    @Resource
     private UserMapper userMapper;
 
     @Override
@@ -66,24 +70,10 @@ public class UserLoginServiceImpl implements UserLoginService {
 
     private void doCheck(UserRegisterDTO userRegisterDTO) {
         String account = userRegisterDTO.getAccount();
-        UserPO userPO = getUserByAccount(account);
+        UserPO userPO = userService.getByAccount(account);
         if (userPO != null) {
             throw new RuntimeException(String.format("账号:%s已经被占用！", account));
         }
-    }
-
-    public UserPO getUserByAccount(String account) {
-        Example example = new Example(UserPO.class);
-        Example.Criteria criteria = example.createCriteria();
-        criteria.andEqualTo("account", account);
-
-        List<UserPO> userPOs = userMapper.selectByExample(example);
-        if (CollectionUtils.isEmpty(userPOs)) {
-            return null;
-        }
-
-        UserPO userPO = userPOs.get(0);
-        return userPO;
     }
 
     @Override
@@ -97,13 +87,7 @@ public class UserLoginServiceImpl implements UserLoginService {
         doCheckPassword(account, password);
 
         String token = TokenUtil.generate(TOKEN_LENGTH);
-
-        String key = "magellan:user:token:info:" + account;
-        Map<String, String> userLoginInfoMap = Maps.newHashMap();
-        userLoginInfoMap.put("account", account);
-        userLoginInfoMap.put("token", token);
-        stringRedisTemplate.opsForHash().putAll(key, userLoginInfoMap);
-        stringRedisTemplate.expire(key, 2, TimeUnit.HOURS);
+        doSetUserTokenMap(account, token);
 
         updateLastLoginTime(account);
         return token;
@@ -129,7 +113,7 @@ public class UserLoginServiceImpl implements UserLoginService {
 
     private void doCheckPassword(String account, String password) {
 
-        UserPO userPO = getUserByAccount(account);
+        UserPO userPO = userService.getByAccount(account);
 
         if (userPO == null) {
             String failKey = "magellan:user:login:fail:" + account;
@@ -141,7 +125,7 @@ public class UserLoginServiceImpl implements UserLoginService {
         String realPasswordHash = userPO.getPassword();
         String realPasswordSaltHash = userPO.getPasswordSalt();
 
-        String passwordHash = PasswordUtil.sha256Hex(password + realPasswordSaltHash);
+        String passwordHash = PasswordUtil.getPasswordHash(password, realPasswordSaltHash);
 
         if (!StringUtils.equalsIgnoreCase(realPasswordHash, passwordHash)) {
             String failKey = "magellan:user:login:fail:" + account;
@@ -150,6 +134,15 @@ public class UserLoginServiceImpl implements UserLoginService {
             throw new RuntimeException("用户名或者秘密不正确");
         }
 
+    }
+
+    private void doSetUserTokenMap(String account, String token) {
+        String key = "magellan:user:token:info:" + token;
+        Map<String, String> userLoginInfoMap = Maps.newHashMap();
+        userLoginInfoMap.put("account", account);
+        userLoginInfoMap.put("token", token);
+        stringRedisTemplate.opsForHash().putAll(key, userLoginInfoMap);
+        stringRedisTemplate.expire(key, 2, TimeUnit.HOURS);
     }
 
     private void updateLastLoginTime(String account) {
@@ -163,12 +156,12 @@ public class UserLoginServiceImpl implements UserLoginService {
     }
 
     @Override
-    public boolean logout(String account) {
+    public boolean logout(String account, String token) {
         String key = "magellan:user:token:info:" + account;
-        Map<Object, Object> userInfoMap = stringRedisTemplate.opsForHash().entries(key);
+        Map<Object, Object> userTokenInfoMap = stringRedisTemplate.opsForHash().entries(key);
 
-        if (MapUtils.isNotEmpty(userInfoMap)) {
-            String accountInRedis = (String) userInfoMap.get("account");
+        if (MapUtils.isNotEmpty(userTokenInfoMap)) {
+            String accountInRedis = (String) userTokenInfoMap.get("account");
             if (StringUtils.equals(account, accountInRedis)) {
                 stringRedisTemplate.delete(key);
                 return true;
